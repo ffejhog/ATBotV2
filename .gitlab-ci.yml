@@ -1,0 +1,50 @@
+stages:
+    - buildverification
+    - builddocker
+    - builddockerdev
+
+
+variables:
+    CONTAINER_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
+    CONTAINER_DEV_IMAGE: $CI_REGISTRY_IMAGE:latestdev
+    
+buildverification:
+    image: mcr.microsoft.com/dotnet/core/sdk:3.1
+    stage: buildverification
+    script: 
+        - dotnet restore
+        - dotnet publish -c Release -o out
+        - tar -czvf ATBotDebug.tar.gz out/*
+    artifacts:
+        paths:
+        - ATBotDebug.tar.gz
+
+builddocker:
+    image: 
+        name: gcr.io/kaniko-project/executor:debug
+        entrypoint: [""]
+    stage: builddocker
+    script: 
+        - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+        - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $CONTAINER_RELEASE_IMAGE
+    environment:
+        name: production
+    only: 
+        - master
+
+builddockerdev:
+    image: 
+        name: gcr.io/kaniko-project/executor:debug
+        entrypoint: [""]
+    stage: builddocker
+    script: 
+        - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+        - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $CONTAINER_DEV_IMAGE --build-arg buildNumber=test
+    environment:
+        name: development
+    only: 
+        - dev
+    except:
+        - merge_requests
+
